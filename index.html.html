@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>终末地排轴工具</title>
+<style>
+:root{--bg:#14171c;--panel:#1d2229;--line:#343c47;--tx:#e8ecf1;--mut:#8b95a3;--ac:#f2c744;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+#title{background:transparent;border:0;border-bottom:1px dashed var(--line);color:var(--tx);font-size:20px;font-weight:700;padding:2px 4px;min-width:0;width:260px;max-width:100%}
+button{background:#2a313b;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
+button:hover{border-color:var(--ac)}button.pri{background:var(--ac);color:#1a1a1a;border-color:var(--ac);font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:8px}
+.slot{aspect-ratio:1;border-radius:50%;border:2px dashed var(--line);position:relative;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:11px;cursor:pointer}
+.slot.over{border-color:var(--ac);background:#2a313b}.slot.has{border-style:solid;border-color:var(--ac)}
+.slot img{width:100%;height:100%;border-radius:50%;display:block}
+.slot .n{position:absolute;top:-6px;left:-2px;font-size:10px;background:var(--bg);color:var(--mut);border-radius:8px;padding:0 4px}
+.ops{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.op{border:1px solid var(--line);border-radius:10px;padding:10px;min-height:150px;text-align:center}
+.op .nm{font-weight:700;margin:6px 0}.op img.av{width:48px;height:48px;border-radius:50%}
+.sk{display:flex;justify-content:center;gap:4px}
+.sk div{font-size:10px;color:var(--mut)}.sk img{width:36px;height:36px;border-radius:50%;cursor:grab;display:block;margin:0 auto 2px;touch-action:none}
+.hint{color:var(--mut);font-size:12px;margin-top:6px}
+#modal{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:9;padding:16px}
+#modal.on{display:flex}
+#modal .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;max-width:560px;width:100%;max-height:80vh;overflow:auto}
+.pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px}
+.pick div{text-align:center;cursor:pointer;font-size:12px}.pick img{width:56px;height:56px;border-radius:50%;border:2px solid transparent}
+.pick div:hover img{border-color:var(--ac)}
+@media(max-width:560px){.ops{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:repeat(5,1fr)}}
+</style></head><body>
+<div class="wrap">
+<div class="panel">
+ <div class="top">
+  <input id="title" value="我的输出轴" placeholder="轴名称" maxlength="30">
+  <div><button id="more">+ 增加格子</button> <button id="less">− 减少</button> <button id="clear">清空</button> <button id="save">保存轴</button> <button id="imp">导入轴</button> <button id="share">复制分享链接</button> <input type="file" id="file" accept=".json" hidden> <button class="pri" id="export">导出 PNG</button></div>
+ </div>
+ <div class="grid" id="grid"></div>
+ <div class="hint">把下方技能图标拖入圆框(手机可先点技能再点圆框);点击已填入的圆框可清除。</div>
+</div>
+<div class="panel"><div class="ops" id="ops"></div></div>
+</div>
+<div id="modal"><div class="box"><b>选择干员</b> <button id="close" style="float:right">关闭</button><div class="pick" id="pick" style="margin-top:12px"></div></div></div>
+
+<script>
+/* ============ 素材 / 数据配置区(在这里替换) ============
+ * 增加干员:在 OPERATORS 末尾加一行即可,人数没有上限。
+ * 替换图标:填写 avatar / skills 里的图片地址(URL 或 base64);不填则使用占位图。
+ * 提示:导出 PNG 时,图片须与本页同源或为 base64(data:),否则浏览器会拦截,自动改用占位图。
+ */
+const SKILL_TYPES = [{key:"heavy",label:"重击",color:"#ff7a59"},{key:"battle",label:"战技",color:"#4aa8ff"},{key:"link",label:"连携技",color:"#6fd08c"},{key:"ult",label:"终结技",color:"#f2c744"}];
+const OPERATORS = Array.from({length:24},(_,i)=>({id:"op"+(i+1),name:"干员"+String(i+1).padStart(2,"0"),
+  avatar:"",                                   // 头像图片,留空=占位
+  skills:{heavy:"",battle:"",link:"",ult:""}}));         // 四个技能图标(重击/战技/连携技/终结技),留空=占位
+// 示例(真实素材到手后): {id:"xxx",name:"某干员",avatar:"img/a.png",skills:{heavy:"img/a0.png",battle:"img/a1.png",link:"img/a2.png",ult:"img/a3.png"}}
+/* ================================================== */
+
+const hue=s=>[...s].reduce((a,c)=>a+c.charCodeAt(0)*7,0)%360;
+function ph(text,color,h){const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><circle cx="48" cy="48" r="46" fill="${color||`hsl(${h},45%,40%)`}"/><text x="48" y="58" font-size="28" fill="#fff" text-anchor="middle" font-family="sans-serif">${text}</text></svg>`;return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg)}
+const opById=id=>OPERATORS.find(o=>o.id===id);
+function avatar(o){return o.avatar||ph(o.name.slice(-2),null,hue(o.id))}
+function skillImg(o,t){const T=SKILL_TYPES.find(x=>x.key===t);return o.skills?.[t]||ph(T.label[0],T.color,0)}
+
+let slots=Array(20).fill(null), chosen=[null,null,null,null], pending=null, picking=0;
+const $=id=>document.getElementById(id);
+
+function drawGrid(){const g=$("grid");g.innerHTML="";slots.forEach((s,i)=>{
+  const d=document.createElement("div");d.className="slot"+(s?" has":"");
+  d.innerHTML=`<span class="n">${i+1}</span>`+(s?`<img src="${skillImg(opById(s.op),s.t)}" draggable="false">`:"");
+  d.ondragover=e=>{e.preventDefault();d.classList.add("over")};d.ondragleave=()=>d.classList.remove("over");
+  d.ondrop=e=>{e.preventDefault();try{const v=JSON.parse(e.dataTransfer.getData("text/plain"));slots[i]=v;drawGrid()}catch{}};
+  d.onclick=()=>{if(pending){slots[i]=pending;pending=null;drawGrid()}else if(s){slots[i]=null;drawGrid()}};
+  g.appendChild(d)})}
+
+function drawOps(){const c=$("ops");c.innerHTML="";chosen.forEach((id,k)=>{
+  const o=id&&opById(id),d=document.createElement("div");d.className="op";
+  if(!o){d.innerHTML=`<div style="padding-top:44px"><button>选择干员</button></div>`;d.querySelector("button").onclick=()=>openPick(k)}
+  else{d.innerHTML=`<img class="av" src="${avatar(o)}"><div class="nm">${o.name}</div><div class="sk"></div><button style="margin-top:8px;font-size:12px">更换</button>`;
+   d.querySelector("button").onclick=()=>openPick(k);
+   SKILL_TYPES.forEach(T=>{const w=document.createElement("div");w.innerHTML=`<img src="${skillImg(o,T.key)}" draggable="true">${T.label}`;
+    const im=w.querySelector("img"),val={op:o.id,t:T.key};
+    im.ondragstart=e=>e.dataTransfer.setData("text/plain",JSON.stringify(val));
+    im.onclick=()=>{pending=val;im.style.outline="2px solid var(--ac)"};
+    d.querySelector(".sk").appendChild(w)})}
+  c.appendChild(d)})}
+
+function openPick(k){picking=k;const p=$("pick");p.innerHTML="";
+  OPERATORS.forEach(o=>{const d=document.createElement("div");d.innerHTML=`<img src="${avatar(o)}"><br>${o.name}`;
+   d.onclick=()=>{chosen[picking]=o.id;$("modal").classList.remove("on");drawOps()};p.appendChild(d)});
+  $("modal").classList.add("on")}
+$("close").onclick=()=>$("modal").classList.remove("on");
+$("modal").onclick=e=>{if(e.target.id==="modal")$("modal").classList.remove("on")};
+$("more").onclick=()=>{slots.push(null,null,null,null,null);drawGrid()};
+$("less").onclick=()=>{if(slots.length>5){slots.length-=5;drawGrid()}};
+$("clear").onclick=()=>{slots=slots.map(()=>null);drawGrid()};
+
+function load(src){return new Promise(r=>{const i=new Image();i.crossOrigin="anonymous";i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src})}
+$("export").onclick=async()=>{
+  const cols=10,sz=72,gap=12,pad=28,head=70,rows=Math.ceil(slots.length/cols);
+  const W=pad*2+cols*sz+(cols-1)*gap,H=head+pad+rows*(sz+gap);
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;const x=cv.getContext("2d");
+  x.fillStyle="#14171c";x.fillRect(0,0,W,H);
+  x.fillStyle="#e8ecf1";x.font="bold 30px sans-serif";x.textBaseline="middle";x.fillText($("title").value||"未命名轴",pad,38);
+  for(let i=0;i<slots.length;i++){const cx=pad+(i%cols)*(sz+gap),cy=head+Math.floor(i/cols)*(sz+gap),s=slots[i];
+    x.save();x.beginPath();x.arc(cx+sz/2,cy+sz/2,sz/2,0,7);
+    if(s){x.clip();const o=opById(s.op);let im=await load(skillImg(o,s.t));
+      if(!im)im=await load(ph(SKILL_TYPES.find(t=>t.key===s.t).label[0],"#555"));
+      x.drawImage(im,cx,cy,sz,sz)}
+    x.restore();x.beginPath();x.arc(cx+sz/2,cy+sz/2,sz/2-1,0,7);x.lineWidth=2;x.strokeStyle=s?"#f2c744":"#343c47";if(!s)x.setLineDash([6,5]);else x.setLineDash([]);x.stroke();x.setLineDash([]);
+    x.fillStyle="#8b95a3";x.font="12px sans-serif";x.textAlign="center";x.fillText(i+1,cx+sz/2,cy+sz+7);x.textAlign="left"}
+  const a=document.createElement("a");a.download=($("title").value||"排轴")+".png";
+  try{a.href=cv.toDataURL("image/png");a.click()}catch{alert("图片跨域导致无法导出,请使用同源图片或 base64。")}};
+/* ===== 保存 / 导入 / 分享 ===== */
+const snap=()=>({v:1,title:$("title").value,slots,chosen});
+function apply(d){try{const ok=id=>id&&opById(id);
+  $("title").value=d.title||"";slots=(d.slots||[]).map(s=>s&&ok(s.op)?s:null);
+  while(slots.length<5||slots.length%5)slots.push(null);
+  chosen=[0,1,2,3].map(i=>ok(d.chosen?.[i])?d.chosen[i]:null);drawGrid();drawOps();return true}catch{return false}}
+$("save").onclick=()=>{const a=document.createElement("a");a.download=($("title").value||"排轴")+".json";
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(snap())],{type:"application/json"}));a.click()};
+$("imp").onclick=()=>$("file").click();
+$("file").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{let d;try{d=JSON.parse(r.result)}catch{}if(!d||!apply(d))alert("文件格式不正确");$("file").value=""};r.readAsText(f)};
+const enc=o=>btoa(unescape(encodeURIComponent(JSON.stringify(o))));
+const dec=s=>JSON.parse(decodeURIComponent(escape(atob(s))));
+$("share").onclick=async()=>{const url=location.href.split("#")[0]+"#t="+enc(snap());
+  try{await navigator.clipboard.writeText(url);alert("分享链接已复制")}catch{prompt("复制下面的链接分享:",url)}};
+if(location.hash.startsWith("#t=")){try{apply(dec(location.hash.slice(3)))}catch{}}
+drawGrid();drawOps();
+</script></body></html>
