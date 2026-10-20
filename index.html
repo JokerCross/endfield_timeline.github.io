@@ -12,7 +12,7 @@ body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 -apple-system,"
 #title{background:transparent;border:0;border-bottom:1px dashed var(--line);color:var(--tx);font-size:20px;font-weight:700;padding:2px 4px;min-width:0;width:260px;max-width:100%}
 button{background:#2a313b;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit}
 button:hover{border-color:var(--ac)}button.pri{background:var(--ac);color:#1a1a1a;border-color:var(--ac);font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:8px}
+.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:14px 22px}
 .slot{aspect-ratio:1;border-radius:50%;border:2px dashed var(--line);position:relative;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:11px;cursor:pointer}
 .slot.over{border-color:var(--ac);background:#2a313b}.slot.has{border-style:solid;border-color:var(--ac)}
 .slot img{width:100%;height:100%;border-radius:50%;display:block}
@@ -29,7 +29,7 @@ button:hover{border-color:var(--ac)}button.pri{background:var(--ac);color:#1a1a1
 .pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px}
 .pick div{text-align:center;cursor:pointer;font-size:12px}.pick img{width:56px;height:56px;border-radius:50%;border:2px solid transparent}
 .pick div:hover img{border-color:var(--ac)}
-@media(max-width:560px){.ops{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:560px){.ops{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:repeat(5,1fr);gap:12px}}
 </style></head><body>
 <div class="wrap">
 <div class="panel">
@@ -98,12 +98,12 @@ $("clear").onclick=()=>{slots=slots.map(()=>null);drawGrid()};
 
 function load(src){return new Promise(r=>{const i=new Image();i.crossOrigin="anonymous";i.onload=()=>r(i);i.onerror=()=>r(null);i.src=src})}
 $("export").onclick=async()=>{
-  const cols=10,sz=72,gap=12,pad=28,head=70,rows=Math.ceil(slots.length/cols);
-  const W=pad*2+cols*sz+(cols-1)*gap,H=head+pad+rows*(sz+gap);
+  const cols=10,sz=60,gx=28,gy=18,pad=28,head=70,rows=Math.ceil(slots.length/cols);
+  const W=pad*2+cols*sz+(cols-1)*gx,H=head+pad+rows*(sz+gy);
   const cv=document.createElement("canvas");cv.width=W;cv.height=H;const x=cv.getContext("2d");
   x.fillStyle="#14171c";x.fillRect(0,0,W,H);
   x.fillStyle="#e8ecf1";x.font="bold 30px sans-serif";x.textBaseline="middle";x.fillText($("title").value||"未命名轴",pad,38);
-  for(let i=0;i<slots.length;i++){const cx=pad+(i%cols)*(sz+gap),cy=head+Math.floor(i/cols)*(sz+gap),s=slots[i];
+  for(let i=0;i<slots.length;i++){const cx=pad+(i%cols)*(sz+gx),cy=head+Math.floor(i/cols)*(sz+gy),s=slots[i];
     x.save();x.beginPath();x.arc(cx+sz/2,cy+sz/2,sz/2,0,7);
     if(s){x.clip();const o=opById(s.op);let im=await load(skillImg(o,s.t));
       if(!im)im=await load(ph(SKILL_TYPES.find(t=>t.key===s.t).label[0],"#555"));
